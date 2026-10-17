@@ -1,8 +1,6 @@
 # DocumentVerificationSystem
 A secure Document Verification System that enables users to upload documents, track verification status, and allows authorized administrators to review and verify submitted documents.
 
-# Document Verification System
-
 ## 1. Project Objective
 To develop a secure web application that allows users to upload documents and enables authorized reviewers to verify them through a structured verification workflow.
 
