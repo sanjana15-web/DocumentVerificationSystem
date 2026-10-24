@@ -1,0 +1,135 @@
+<%- include('../partials/helpers') %>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> | <%= appName %></title>
+  <link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+<div class="app-layout">
+  <%- include('../partials/sidebar', { user, unreadCount, activePage: 'submissions' }) %>
+  <div class="main-content">
+    <%- include('../partials/topbar', { title, breadcrumbs: [{ label: 'Submissions' }] }) %>
+    <div class="page-content">
+
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Submissions</h1>
+          <p class="page-subtitle">
+            <%= total %> submission<%= total !== 1 ? 's' : '' %>
+            <% if (filters.status) { %> · Filtered by: <strong><%= filters.status === 'review_queue' ? 'Reviewer queue' : filters.status %></strong><% } %>
+          </p>
+        </div>
+        <% if (user.role === 'submitter' || user.role === 'admin') { %>
+        <a href="/submissions/new" class="btn btn-primary">➕ New Submission</a>
+        <% } %>
+      </div>
+
+      <!-- Filters -->
+      <form method="GET" action="/submissions" class="card mb-16">
+        <div class="card-body">
+          <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+            <div class="form-group" style="margin:0;flex:1;min-width:200px">
+              <label class="form-label">Search</label>
+              <input type="text" name="search" class="form-control" placeholder="Reference, vendor, title…" value="<%= filters.search || '' %>">
+            </div>
+            <div class="form-group" style="margin:0">
+              <label class="form-label">Status</label>
+              <select name="status" class="form-control">
+                <option value="">All statuses</option>
+                <% if (['reviewer','admin'].includes(user.role)) { %>
+                <option value="review_queue" <%= filters.status === 'review_queue' ? 'selected' : '' %>>Reviewer queue</option>
+                <% } %>
+                <% ['DRAFT','UPLOADED','PROCESSING','REVIEW_REQUIRED','NEEDS_REVIEW','IN_REVIEW','CHANGES_REQUESTED','CLARIFICATION_REQUIRED','RESUBMITTED','PENDING_APPROVAL','APPROVED','REJECTED','PROCESSING_FAILED'].forEach(s => { %>
+                <option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= s.replace(/_/g,' ') %></option>
+                <% }) %>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Filter</button>
+            <a href="/submissions" class="btn btn-outline">Reset</a>
+          </div>
+        </div>
+      </form>
+
+      <div class="card">
+        <% if (submissions && submissions.length > 0) { %>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Reference</th>
+                <th>Title / Vendor</th>
+                <th>Status</th>
+                <th><% if (user.role !== 'submitter') { %>Submitter<% } else { %>Version<% } %></th>
+                <th>Date</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <% submissions.forEach(s => { %>
+              <tr>
+                <td><a href="/submissions/<%= s.id %>" class="td-primary mono"><%= s.ref_number %></a></td>
+                <td>
+                  <div class="fw-600 text-md"><%= s.title.length > 50 ? s.title.slice(0,50) + '…' : s.title %></div>
+                  <div class="text-sm text-muted"><%= s.vendor_name || '—' %></div>
+                </td>
+                <td><%- statusBadge(s.status) %></td>
+                <td class="text-sm">
+                  <% if (user.role !== 'submitter') { %><%= s.submitter_name || '—' %><% } else { %>v<%= s.current_version_number || '—' %><% } %>
+                </td>
+                <td class="text-sm text-muted nowrap"><%= fmtDate(s.created_at) %></td>
+                <td>
+                  <% const mayUpload = user.role === 'submitter' && ['DRAFT','CHANGES_REQUESTED','REJECTED','PROCESSING_FAILED'].includes(s.status);
+                     const mayReview = ['reviewer','admin'].includes(user.role) && ['REVIEW_REQUIRED','NEEDS_REVIEW','IN_REVIEW'].includes(s.status);
+                     const mayDecide = ['approver','admin'].includes(user.role) && s.status === 'PENDING_APPROVAL';
+                     const actionUrl = mayUpload ? `/submissions/${s.id}/upload`
+                       : mayDecide ? `/submissions/${s.id}/decide` : `/submissions/${s.id}`;
+                     const actionLabel = mayUpload ? 'Upload'
+                       : mayReview ? 'Review' : mayDecide ? 'Decide' : 'View status'; %>
+                  <a href="<%= actionUrl %>" class="btn <%= mayDecide ? 'btn-primary' : mayReview ? 'btn-teal' : 'btn-outline' %> btn-sm"><%= actionLabel %></a>
+                </td>
+              </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+
+        <% if (pages > 1) { %>
+        <div class="pagination">
+          <span class="pagination-info"><%= total %> total · Page <%= currentPage %> of <%= pages %></span>
+          <% if (currentPage > 1) { %>
+          <a href="?page=<%= currentPage - 1 %>&status=<%= filters.status||'' %>&search=<%= filters.search||'' %>" class="page-link">← Prev</a>
+          <% } %>
+          <% for (let p = 1; p <= Math.min(pages, 7); p++) { %>
+          <a href="?page=<%= p %>&status=<%= filters.status||'' %>&search=<%= filters.search||'' %>" class="page-link <%= p === currentPage ? 'active' : '' %>"><%= p %></a>
+          <% } %>
+          <% if (currentPage < pages) { %>
+          <a href="?page=<%= currentPage + 1 %>&status=<%= filters.status||'' %>&search=<%= filters.search||'' %>" class="page-link">Next →</a>
+          <% } %>
+        </div>
+        <% } %>
+
+        <% } else { %>
+        <div class="empty-state">
+          <div class="empty-icon">📄</div>
+          <div class="empty-title">No submissions found</div>
+          <div class="empty-text">
+            <% if (user.role === 'submitter') { %>
+            <a href="/submissions/new" class="btn btn-primary mt-12">Create your first submission</a>
+            <% } else if (['reviewer','admin'].includes(user.role) && filters.status === 'review_queue') { %>
+            The review queue includes submissions after document processing is complete. Drafts still need an upload; processing documents will appear when OCR finishes.
+            <% } else { %>
+            No submissions match your current filters.
+            <% } %>
+          </div>
+        </div>
+        <% } %>
+      </div>
+
+    </div>
+  </div>
+</div>
+<script src="/js/main.js"></script>
+</body>
+</html>

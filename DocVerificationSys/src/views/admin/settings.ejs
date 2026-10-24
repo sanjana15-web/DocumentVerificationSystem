@@ -1,0 +1,8 @@
+<%- include('../partials/helpers') %>
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title><%= title %> | <%= appName %></title><link rel="stylesheet" href="/css/main.css"></head>
+<body><div class="app-layout"><%- include('../partials/sidebar', { user, unreadCount, activePage: 'settings' }) %><main class="main-content"><%- include('../partials/topbar', { title, breadcrumbs: [{ label: 'Administration', url: '/admin' }, { label: 'Settings' }] }) %><div class="page-content">
+<%- include('../partials/flash', { flash }) %><h1 class="page-title">System settings</h1><p class="page-subtitle">Upload and verification controls stored in the database.</p>
+<div class="card"><div class="card-body"><form method="POST" action="/admin/settings"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
+<% Object.values(settings).forEach(setting => { %><div class="form-group"><label class="form-label" for="<%= setting.key %>"><%= setting.key.replace(/_/g, ' ') %></label><input class="form-control" id="<%= setting.key %>" name="<%= setting.key %>" value="<%= setting.value %>"><% if (setting.description) { %><span class="form-hint"><%= setting.description %></span><% } %></div><% }) %>
+<button class="btn btn-primary" type="submit">Save settings</button></form></div></div>
+</div></main></div></body></html>

@@ -1,0 +1,8 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title><%= code %> | <%= typeof appName !== 'undefined' ? appName : 'DocVerify' %></title><link rel="stylesheet" href="/css/main.css"></head>
+<body><main class="auth-page"><section class="auth-card" aria-labelledby="error-title">
+  <div class="auth-logo"><div class="auth-logo-icon">📋</div><span class="auth-logo-text">DocVerify</span></div>
+  <p class="text-muted"><%= code %></p><h1 class="auth-title" id="error-title"><%= title %></h1>
+  <p class="auth-subtitle"><%= message %></p><a class="btn btn-primary full-width" href="<%= typeof user !== 'undefined' && user ? '/dashboard' : '/auth/login' %>">Continue</a>
+</section></main></body></html>

@@ -1,0 +1,15 @@
+.env
+node_modules/
+storage/uploads/*
+!storage/uploads/.gitkeep
+*.log
+logs/
+coverage/
+.nyc_output/
+dist/
+python-ocr-service/.venv/
+python-ocr-service/__pycache__/
+python-ocr-service/*.pyc
+*.pem
+*.key
+*.cert

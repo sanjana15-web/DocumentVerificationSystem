@@ -1,0 +1,260 @@
+<%- include('../partials/helpers') %>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> | <%= appName %></title>
+  <link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+<div class="app-layout">
+  <%- include('../partials/sidebar', { user, unreadCount, activePage: 'dashboard' }) %>
+  <div class="main-content">
+    <%- include('../partials/topbar', { title, breadcrumbs: [{ label: 'Dashboard' }] }) %>
+    <div class="page-content">
+
+      <%- include('../partials/flash', { flash }) %>
+
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Dashboard</h1>
+          <p class="page-subtitle">Welcome back, <strong><%= user.full_name %></strong></p>
+        </div>
+        <% if (user.role === 'submitter') { %>
+        <a href="/submissions/new" class="btn btn-primary">➕ New Submission</a>
+        <% } %>
+      </div>
+
+      <!-- ── Submitter Dashboard ─────────────────────────────── -->
+      <% if (user.role === 'submitter') { %>
+
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-label">Total Submissions</div>
+          <div class="stat-value"><%= stats.total || 0 %></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Drafts</div>
+          <div class="stat-value"><%= stats.DRAFT || 0 %></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">In Review</div>
+          <div class="stat-value"><%= (stats.REVIEW_REQUIRED || 0) + (stats.IN_REVIEW || 0) %></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Changes Requested</div>
+          <div class="stat-value" style="color:var(--warning)"><%= stats.CHANGES_REQUESTED || 0 %></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Approved</div>
+          <div class="stat-value" style="color:var(--success)"><%= stats.APPROVED || 0 %></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Rejected</div>
+          <div class="stat-value" style="color:var(--error)"><%= stats.REJECTED || 0 %></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Recent Submissions</span>
+          <a href="/submissions" class="btn btn-outline btn-sm">View All</a>
+        </div>
+        <% if (recent && recent.length > 0) { %>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Reference</th>
+                <th>Vendor</th>
+                <th>Status</th>
+                <th>Submitted</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% recent.forEach(s => { %>
+              <tr>
+                <td><a href="/submissions/<%= s.id %>" class="td-primary"><%= s.ref_number %></a></td>
+                <td><%= s.vendor_name || '—' %></td>
+                <td><%- statusBadge(s.status) %></td>
+                <td><%= fmtDate(s.created_at) %></td>
+              </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+        <% } else { %>
+        <div class="empty-state">
+          <div class="empty-icon">📄</div>
+          <div class="empty-title">No submissions yet</div>
+          <div class="empty-text"><a href="/submissions/new">Create your first submission</a></div>
+        </div>
+        <% } %>
+      </div>
+
+      <!-- ── Reviewer Dashboard ──────────────────────────────── -->
+      <% } else if (user.role === 'reviewer') { %>
+
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-label">Review Required</div>
+          <div class="stat-value"><%= stats.reviewRequired || 0 %></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Currently In Review</div>
+          <div class="stat-value"><%= stats.inReview || 0 %></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">📥 Review Queue</span>
+          <a href="/submissions?status=REVIEW_REQUIRED" class="btn btn-outline btn-sm">All Queue</a>
+        </div>
+        <% if (queue && queue.length > 0) { %>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>Reference</th><th>Vendor</th><th>Status</th><th>Priority</th><th>Submitted</th><th></th></tr></thead>
+            <tbody>
+              <% queue.forEach(s => { %>
+              <tr>
+                <td><a href="/submissions/<%= s.id %>" class="td-primary"><%= s.ref_number %></a></td>
+                <td><%= s.vendor_name || '—' %></td>
+                <td><%- statusBadge(s.status) %></td>
+                <td><span class="badge badge-<%= s.priority === 'high' ? 'high' : s.priority === 'low' ? 'low' : 'info' %>"><%= s.priority %></span></td>
+                <td><%= fmtDate(s.created_at) %></td>
+                <td><a href="/submissions/<%= s.id %>" class="btn btn-teal btn-sm">Review</a></td>
+              </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+        <% } else { %>
+        <div class="empty-state"><div class="empty-icon">✅</div><div class="empty-title">No items in queue</div><div class="empty-text">All submissions are up to date.</div></div>
+        <% } %>
+      </div>
+
+      <!-- ── Approver Dashboard ──────────────────────────────── -->
+      <% } else if (user.role === 'approver') { %>
+
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-label">Pending Approval</div>
+          <div class="stat-value"><%= stats.pending || 0 %></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">⏳ Pending Approvals</span>
+        </div>
+        <% if (queue && queue.length > 0) { %>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>Reference</th><th>Vendor</th><th>Amount</th><th>Submitter</th><th>Age</th><th></th></tr></thead>
+            <tbody>
+              <% queue.forEach(s => { %>
+              <tr>
+                <td><a href="/submissions/<%= s.id %>" class="td-primary"><%= s.ref_number %></a></td>
+                <td><%= s.vendor_name || '—' %></td>
+                <td class="mono"><%= s.currency || '' %> <%= s.total_amount || '—' %></td>
+                <td><%= s.submitter_name || '—' %></td>
+                <td class="text-muted"><%= fmtDate(s.created_at) %></td>
+                <td><a href="/submissions/<%= s.id %>/decide" class="btn btn-primary btn-sm">Decide</a></td>
+              </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+        <% } else { %>
+        <div class="empty-state"><div class="empty-icon">✅</div><div class="empty-title">Nothing pending approval</div></div>
+        <% } %>
+      </div>
+
+      <!-- ── Admin Dashboard ─────────────────────────────────── -->
+      <% } else if (user.role === 'admin') { %>
+
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-label">Total Submissions</div>
+          <div class="stat-value"><%= stats.total || 0 %></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Pending Approval</div>
+          <div class="stat-value"><%= stats.PENDING_APPROVAL || 0 %></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">In Review</div>
+          <div class="stat-value"><%= (stats.REVIEW_REQUIRED || 0) + (stats.IN_REVIEW || 0) %></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Approved</div>
+          <div class="stat-value" style="color:var(--success)"><%= stats.APPROVED || 0 %></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Failed Processing</div>
+          <div class="stat-value" style="color:var(--error)"><%= stats.PROCESSING_FAILED || 0 %></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Average Turnaround</div>
+          <div class="stat-value"><%= stats.averageTurnaroundHours || 0 %><span class="text-sm"> h</span></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Submissions with Corrections</div>
+          <div class="stat-value"><%= stats.correctionRate || 0 %><span class="text-sm">%</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><span class="card-title">Most Frequently Failing Fields</span></div>
+        <% if (stats.topFailingFields && stats.topFailingFields.length) { %>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>Field</th><th>Failed checks</th></tr></thead>
+            <tbody>
+              <% stats.topFailingFields.forEach(field => { %>
+              <tr><td><%= field.field_name %></td><td><%= field.failure_count %></td></tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+        <% } else { %>
+        <p class="text-muted">No failed field checks have been recorded.</p>
+        <% } %>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">📋 Recent Audit Events</span>
+          <a href="/admin/audit" class="btn btn-outline btn-sm">View All</a>
+        </div>
+        <% if (recent && recent.length > 0) { %>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>Action</th><th>Actor</th><th>Entity</th><th>Time</th></tr></thead>
+            <tbody>
+              <% recent.forEach(e => { %>
+              <tr>
+                <td><span class="mono text-sm"><%= e.action %></span></td>
+                <td class="text-sm"><%= e.actor_email || 'system' %></td>
+                <td class="text-sm"><%= e.entity_type %> <span class="text-muted"><%= e.entity_id ? e.entity_id.slice(0,8) + '…' : '' %></span></td>
+                <td class="text-sm text-muted nowrap"><%= fmtDateTime(e.created_at) %></td>
+              </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+        <% } else { %>
+        <div class="empty-state"><div class="empty-icon">📋</div><div class="empty-title">No audit events yet</div></div>
+        <% } %>
+      </div>
+
+      <% } %>
+
+    </div>
+  </div>
+</div>
+<script src="/js/main.js"></script>
+</body>
+</html>

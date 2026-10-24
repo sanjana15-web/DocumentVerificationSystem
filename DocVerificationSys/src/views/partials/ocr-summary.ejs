@@ -1,0 +1,77 @@
+<% if (currentVersion) {
+     const methodLabels = {
+       embedded_text: 'Embedded document text',
+       tesseract: 'Tesseract OCR',
+       hybrid: 'OCR and embedded text',
+     };
+     const populatedFields = (fields || []).filter(field => field.field_value);
+     const priority = ['vendor_name', 'supplier_name', 'invoice_number', 'document_number', 'invoice_date', 'issue_date', 'total_amount', 'currency', 'student_name', 'institution_name'];
+     const summaryFields = [
+       ...priority.map(name => populatedFields.find(field => field.field_name === name)).filter(Boolean),
+       ...populatedFields.filter(field => !priority.includes(field.field_name)),
+     ].slice(0, 6);
+%>
+<section class="card mb-16" aria-labelledby="ocr-summary-title">
+  <div class="card-header">
+    <span class="card-title" id="ocr-summary-title">OCR &amp; Extracted Summary</span>
+    <% if (currentVersion.processing_status === 'completed') { %>
+    <span class="badge badge-approved">Processing complete</span>
+    <% } else if (currentVersion.processing_status === 'failed') { %>
+    <span class="badge badge-failed">Processing failed</span>
+    <% } else { %>
+    <span class="badge badge-processing"><%= currentVersion.processing_status %></span>
+    <% } %>
+  </div>
+  <div class="card-body">
+    <% if (currentVersion.processing_status === 'completed' && ocrResult) { %>
+    <p class="text-sm text-muted mb-16">
+      <strong><%= summaryFields.length %></strong> key value<%= summaryFields.length === 1 ? '' : 's' %> shown
+      from <strong><%= ocrResult.page_count || 'unknown' %></strong> page<%= ocrResult.page_count === 1 ? '' : 's' %>.
+      Extraction: <strong><%= methodLabels[ocrResult.extraction_method] || ocrResult.extraction_method || 'Not recorded' %></strong>.
+      <% if (ocrResult.avg_confidence !== null && ocrResult.avg_confidence !== undefined) { %>
+      Average extraction confidence: <strong><%= Math.round(Number(ocrResult.avg_confidence)) %>%</strong>.
+      <% } %>
+      Verify every value against the original document; OCR can misread text.
+    </p>
+
+    <% if (summaryFields.length) { %>
+    <div class="ocr-summary-fields">
+      <% summaryFields.forEach(field => { %>
+      <div class="ocr-summary-field">
+        <span class="text-sm text-muted"><%= field.field_name.replace(/_/g, ' ') %></span>
+        <strong><%= field.field_value %></strong>
+        <% if (field.is_corrected) { %><span class="badge badge-warning">Reviewer corrected</span><% } %>
+        <% if (field.page_number) { %><span class="text-sm text-muted">Page <%= field.page_number %></span><% } %>
+      </div>
+      <% }) %>
+    </div>
+    <% } else { %>
+    <p class="text-sm text-muted">OCR completed, but no field values were recognized. Review the extracted text and original document manually.</p>
+    <% } %>
+
+    <% if (ocrResult.raw_text) { %>
+    <details class="ocr-raw-text">
+      <summary>View full OCR text (unverified)</summary>
+      <pre><%= ocrResult.raw_text %></pre>
+    </details>
+    <% } %>
+    <% } else if (currentVersion.processing_status === 'completed') { %>
+    <p class="text-sm text-muted">Processing completed, but no OCR result is available. Review the original document manually.</p>
+    <% } else if (currentVersion.processing_status === 'failed') { %>
+    <p class="text-sm text-muted">
+      The document could not be processed for text extraction.
+      Review the original file manually; the submitter may need to upload a clearer document.
+    </p>
+    <% if (/status code 401/i.test(currentVersion.processing_error || '')) { %>
+    <p class="alert alert-error mt-8">
+      The OCR service rejected its API key. Restart the Python OCR service with the same
+      <code>OCR_SERVICE_API_KEY</code> value configured in the project's <code>.env</code>,
+      then upload this document again.
+    </p>
+    <% } %>
+    <% } else { %>
+    <p class="text-sm text-muted">Text extraction is still running. The summary and extracted fields will appear here when processing completes.</p>
+    <% } %>
+  </div>
+</section>
+<% } %>

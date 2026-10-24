@@ -1,0 +1,27 @@
+<header class="topbar">
+  <button class="btn btn-ghost hamburger" onclick="toggleSidebar()" id="hamburger" aria-label="Toggle menu">☰</button>
+
+  <div class="topbar-breadcrumb">
+    <% if (locals.breadcrumbs && breadcrumbs.length > 0) { %>
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <% breadcrumbs.forEach((crumb, i) => { %>
+        <% if (i > 0) { %><span class="sep">›</span><% } %>
+        <% if (crumb.url && i < breadcrumbs.length - 1) { %>
+          <a href="<%= crumb.url %>"><%= crumb.label %></a>
+        <% } else { %>
+          <span class="current"><%= crumb.label %></span>
+        <% } %>
+      <% }) %>
+    </nav>
+    <% } else { %>
+    <span class="breadcrumb"><span class="current"><%= title %></span></span>
+    <% } %>
+  </div>
+
+  <div class="topbar-actions">
+    <a href="/notifications" class="notif-btn" id="notif-btn" title="Notifications" aria-label="Notifications">
+      🔔
+      <% if (unreadCount > 0) { %><span class="notif-dot" aria-hidden="true"></span><% } %>
+    </a>
+  </div>
+</header>

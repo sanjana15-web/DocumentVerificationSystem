@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign In | DocVerify</title>
+  <meta name="description" content="Sign in to DocVerify — Document Verification & Approval System">
+  <link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <div class="auth-logo-icon">📋</div>
+      <span class="auth-logo-text">DocVerify</span>
+    </div>
+
+    <h1 class="auth-title">Welcome back</h1>
+    <p class="auth-subtitle">Sign in to access the document verification system.</p>
+
+    <% if (locals.reason === 'account_deactivated') { %>
+    <div class="alert alert-error"><span class="alert-icon">❌</span> Your account has been deactivated. Contact your administrator.</div>
+    <% } %>
+
+    <% if (locals.errors && errors.length > 0) { %>
+    <div class="errors-list"><ul><% errors.forEach(e => { %><li><%= e.msg %></li><% }) %></ul></div>
+    <% } %>
+
+    <form method="POST" action="/auth/login" id="login-form" novalidate>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+      <div class="form-group">
+        <label class="form-label form-required" for="email">Email address</label>
+        <input type="email" id="email" name="email" class="form-control" autocomplete="email" required
+          placeholder="you@example.com" autofocus>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label form-required" for="password">Password</label>
+        <input type="password" id="password" name="password" class="form-control" autocomplete="current-password" required
+          placeholder="••••••••••">
+      </div>
+
+      <button type="submit" class="btn btn-primary full-width btn-lg" id="login-btn">Sign in</button>
+    </form>
+
+    <p class="text-sm text-muted mt-16" style="text-align:center">
+      Need access? Contact your system administrator.
+    </p>
+  </div>
+</div>
+<script src="/js/main.js"></script>
+</body>
+</html>

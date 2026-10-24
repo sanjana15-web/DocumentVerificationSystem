@@ -1,0 +1,13 @@
+<%- include('../partials/helpers') %>
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title><%= title %> | <%= appName %></title><link rel="stylesheet" href="/css/main.css"></head>
+<body><div class="app-layout"><%- include('../partials/sidebar', { user, unreadCount, activePage: 'document-types' }) %><main class="main-content"><%- include('../partials/topbar', { title, breadcrumbs: [{ label: 'Administration', url: '/admin' }, { label: 'Document Types' }] }) %><div class="page-content">
+<%- include('../partials/flash', { flash: locals.flash || null }) %><h1 class="page-title">Document types and required fields</h1><p class="page-subtitle">Disabled types are hidden from new submissions. Authenticity checks remain manual unless a trusted integration is configured.</p>
+<% documentTypes.forEach(type => { %><section class="card mb-16"><div class="card-header"><span class="card-title"><%= type.display_name %></span><span class="text-sm text-muted"><%= type.category %> · schema <%= type.schema_version %></span></div><div class="card-body">
+<form method="POST" action="/admin/document-types/<%= type.id %>"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
+<label class="form-label"><input type="checkbox" name="enabled" value="1" <%= type.is_enabled ? 'checked' : '' %>> Enabled for new submissions</label>
+<p class="text-sm text-muted"><%= type.description %></p><div class="form-row">
+<% type.fields.forEach(field => { %><label class="form-label" style="min-width:220px"><input type="checkbox" name="required_fields" value="<%= field.id %>" <%= field.required ? 'checked' : '' %>> <%= field.label %> <span class="text-sm text-muted">(<%= field.type %>)</span></label><% }) %>
+</div><h3 class="mt-16">Validation rules</h3><div class="form-row">
+<% (rulesByType.get(type.id) || []).forEach(rule => { %><label class="form-label" style="min-width:260px"><input type="checkbox" name="enabled_rules" value="<%= rule.rule_id %>" <%= rule.is_enabled ? 'checked' : '' %> <%= rule.rule_id === 'AUTHENTICITY_MANUAL_REVIEW' ? 'disabled' : '' %>> <%= rule.rule_name %> <% if (rule.requires_human) { %><span class="text-sm text-muted">(human review)</span><% } %></label><% }) %>
+</div><% if (rulesByType.get(type.id) && rulesByType.get(type.id).some(rule => rule.rule_id === 'AUTHENTICITY_MANUAL_REVIEW')) { %><input type="hidden" name="enabled_rules" value="AUTHENTICITY_MANUAL_REVIEW"><% } %><button class="btn btn-outline mt-8" type="submit">Save type settings</button></form></div></section><% }) %>
+</div></main></div></body></html>

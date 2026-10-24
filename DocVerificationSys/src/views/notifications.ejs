@@ -1,0 +1,8 @@
+<%- include('partials/helpers') %>
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title><%= title %> | <%= appName %></title><link rel="stylesheet" href="/css/main.css"></head>
+<body><div class="app-layout"><%- include('partials/sidebar', { user, unreadCount }) %><main class="main-content"><%- include('partials/topbar', { title, breadcrumbs: [{ label: 'Notifications' }] }) %><div class="page-content">
+<h1 class="page-title">Notifications</h1>
+<% if (notifications.length) { %><div class="card"><div class="table-wrapper"><table><thead><tr><th>Notification</th><th>Type</th><th>Date</th><th></th></tr></thead><tbody>
+<% notifications.forEach(notification => { %><tr><td><strong><%= notification.title %></strong><div class="text-sm text-muted"><%= notification.body || '' %></div></td><td><%= notification.notif_type %></td><td><%= fmtDateTime(notification.created_at) %></td><td><% if (notification.entity_type === 'submission' && notification.entity_id) { %><a class="btn btn-outline btn-sm" href="/submissions/<%= notification.entity_id %>">Open</a><% } %></td></tr><% }) %>
+</tbody></table></div></div><% } else { %><div class="empty-state"><div class="empty-title">No notifications</div><div class="empty-text">You are all caught up.</div></div><% } %>
+</div></main></div></body></html>

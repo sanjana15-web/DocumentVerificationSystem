@@ -1,0 +1,169 @@
+<%- include('../partials/helpers') %>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> | <%= appName %></title>
+  <link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+<div class="app-layout">
+  <%- include('../partials/sidebar', { user, unreadCount }) %>
+  <div class="main-content">
+    <%- include('../partials/topbar', { title, breadcrumbs: [
+      { label: 'Submissions', url: '/submissions' },
+      { label: submission.ref_number, url: '/submissions/' + submission.id },
+      { label: 'Upload Document' }
+    ] }) %>
+    <div class="page-content">
+
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Upload Document</h1>
+          <p class="page-subtitle"><%= submission.ref_number %> · Version <%= (versions.length + 1) %></p>
+        </div>
+      </div>
+
+      <% if (errors && errors.length > 0) { %>
+      <div class="errors-list"><ul><% errors.forEach(e => { %><li><%= e.msg %></li><% }) %></ul></div>
+      <% } %>
+      <div class="errors-list hidden" id="upload-error" role="alert"><ul><li></li></ul></div>
+
+      <div class="card" style="max-width:680px">
+        <div class="card-header"><span class="card-title">Document Upload</span></div>
+        <div class="card-body">
+
+          <% if (versions.length > 0) { %>
+          <div class="alert alert-info mb-16">
+            <span class="alert-icon">ℹ️</span>
+            <span>This will create version <strong><%= versions.length + 1 %></strong>. The original document is preserved and never overwritten.</span>
+          </div>
+          <% } %>
+
+          <form method="POST" action="/submissions/<%= submission.id %>/upload"
+                enctype="multipart/form-data" id="upload-form" novalidate>
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+            <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
+              <div class="upload-icon" id="upload-icon">📂</div>
+              <div class="upload-label" id="upload-label">Click to select or drag & drop</div>
+              <div class="upload-hint">PDF, JPEG, PNG — max <%= maxFileSizeMb %> MB</div>
+              <div id="selected-file" class="text-sm text-teal mt-8 hidden"></div>
+            </div>
+            <input type="file" id="file-input" name="document" accept=".pdf,.jpg,.jpeg,.png" style="display:none" required>
+
+            <div style="display:flex;gap:12px;justify-content:flex-end;padding-top:20px">
+              <a href="/submissions/<%= submission.id %>" class="btn btn-outline">Back</a>
+              <button type="submit" class="btn btn-primary" id="upload-btn" disabled>Upload & Process</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Version history -->
+      <% if (versions.length > 0) { %>
+      <div class="card mt-24">
+        <div class="card-header"><span class="card-title">Version History</span></div>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>Version</th><th>Filename</th><th>Size</th><th>Uploaded By</th><th>Status</th><th>Date</th></tr></thead>
+            <tbody>
+              <% versions.forEach(v => { %>
+              <tr>
+                <td class="td-primary">v<%= v.version_number %></td>
+                <td class="text-sm"><%= v.original_filename %></td>
+                <td class="text-sm text-muted"><%= fmtBytes(v.file_size_bytes) %></td>
+                <td class="text-sm"><%= v.uploader_name %></td>
+                <td>
+                  <% const statusMap = {pending:'⏳',processing:'🔄',completed:'✅',failed:'❌'};
+                     const statusClsMap = {pending:'badge-processing',processing:'badge-processing',completed:'badge-approved',failed:'badge-failed'}; %>
+                  <span class="badge <%= statusClsMap[v.processing_status] || 'badge-draft' %>">
+                    <%= statusMap[v.processing_status] || '' %> <%= v.processing_status %>
+                  </span>
+                </td>
+                <td class="text-sm text-muted nowrap"><%= fmtDate(v.created_at) %></td>
+              </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <% } %>
+
+    </div>
+  </div>
+</div>
+<script src="/js/main.js"></script>
+<script>
+  const zone    = document.getElementById('upload-zone');
+  const input   = document.getElementById('file-input');
+  const label   = document.getElementById('upload-label');
+  const icon    = document.getElementById('upload-icon');
+  const info    = document.getElementById('selected-file');
+  const btn     = document.getElementById('upload-btn');
+  const form    = document.getElementById('upload-form');
+  const errorBox = document.getElementById('upload-error');
+
+  input.addEventListener('change', () => {
+    const file = input.files[0];
+    if (file) {
+      label.textContent = file.name;
+      icon.textContent  = '📄';
+      const mb = (file.size / (1024*1024)).toFixed(2);
+      info.textContent  = `${mb} MB · ${file.type}`;
+      info.classList.remove('hidden');
+      btn.disabled = false;
+    }
+  });
+
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    errorBox.classList.add('hidden');
+    btn.disabled = true;
+    btn.textContent = 'Uploading…';
+
+    let response;
+    try {
+      response = await fetch(form.action, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'x-csrf-token': form.querySelector('input[name="_csrf"]').value,
+        },
+        body: new FormData(form),
+      });
+    } catch {
+      errorBox.querySelector('li').textContent = 'The upload response was interrupted. Returning to the submission so you can check whether it was received.';
+      errorBox.classList.remove('hidden');
+      window.setTimeout(() => window.location.assign('/submissions/<%= submission.id %>'), 1200);
+      return;
+    }
+    if (response.redirected) {
+      window.location.assign(response.url);
+      return;
+    }
+    try {
+      const result = await response.json().catch(() => ({}));
+      throw new Error(result.error || `Upload failed (${response.status}). Please try again.`);
+    } catch (error) {
+      errorBox.querySelector('li').textContent = error.message || 'Upload failed. Check your connection and try again.';
+      errorBox.classList.remove('hidden');
+      btn.disabled = false;
+      btn.textContent = 'Upload & Process';
+    }
+  });
+
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragging'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('dragging'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('dragging');
+    if (e.dataTransfer.files[0]) {
+      const dt = e.dataTransfer;
+      input.files = dt.files;
+      input.dispatchEvent(new Event('change'));
+    }
+  });
+</script>
+</body>
+</html>

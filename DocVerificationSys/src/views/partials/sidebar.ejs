@@ -1,0 +1,88 @@
+<nav class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <div class="sidebar-logo-icon">📋</div>
+    <span class="sidebar-logo-text">DocVerify</span>
+  </div>
+
+  <div class="sidebar-nav">
+    <span class="nav-section-label">Main</span>
+
+    <a href="/dashboard" class="nav-item <%= locals.activePage === 'dashboard' ? 'active' : '' %>">
+      <span class="nav-icon">🏠</span> Dashboard
+    </a>
+
+    <a href="/submissions" class="nav-item <%= locals.activePage === 'submissions' ? 'active' : '' %>">
+      <span class="nav-icon">📄</span> Submissions
+    </a>
+
+    <% if (user && (user.role === 'submitter' || user.role === 'admin')) { %>
+    <a href="/submissions/new" class="nav-item <%= locals.activePage === 'new-submission' ? 'active' : '' %>">
+      <span class="nav-icon">➕</span> New Submission
+    </a>
+    <% } %>
+
+    <% if (user && (user.role === 'reviewer' || user.role === 'admin')) { %>
+    <span class="nav-section-label">Review</span>
+    <a href="/submissions?status=review_queue" class="nav-item">
+      <span class="nav-icon">🔍</span> Review Queue
+    </a>
+    <a href="/submissions?status=IN_REVIEW" class="nav-item">
+      <span class="nav-icon">✏️</span> In Review
+    </a>
+    <% } %>
+
+    <% if (user && (user.role === 'approver' || user.role === 'admin')) { %>
+    <span class="nav-section-label">Approval</span>
+    <a href="/submissions?status=PENDING_APPROVAL" class="nav-item">
+      <span class="nav-icon">✅</span> Approval Queue
+    </a>
+    <% } %>
+
+    <% if (user && user.role === 'admin') { %>
+    <span class="nav-section-label">Admin</span>
+    <a href="/admin" class="nav-item <%= locals.activePage === 'admin-dash' ? 'active' : '' %>">
+      <span class="nav-icon">⚙️</span> Admin Dashboard
+    </a>
+    <a href="/admin/users" class="nav-item <%= locals.activePage === 'admin-users' ? 'active' : '' %>">
+      <span class="nav-icon">👥</span> Users
+    </a>
+    <a href="/admin/audit" class="nav-item <%= locals.activePage === 'audit-log' ? 'active' : '' %>">
+      <span class="nav-icon">📋</span> Audit Log
+    </a>
+    <a href="/admin/settings" class="nav-item <%= locals.activePage === 'settings' ? 'active' : '' %>">
+      <span class="nav-icon">🔧</span> Settings
+    </a>
+    <a href="/admin/document-types" class="nav-item <%= locals.activePage === 'document-types' ? 'active' : '' %>">
+      <span class="nav-icon">🗂️</span> Document Types
+    </a>
+    <a href="/admin/references" class="nav-item <%= locals.activePage === 'references' ? 'active' : '' %>">
+      <span class="nav-icon">🔗</span> Reference Records
+    </a>
+    <% } %>
+
+    <span class="nav-section-label">Account</span>
+    <a href="/notifications" class="nav-item">
+      <span class="nav-icon">🔔</span> Notifications
+      <% if (unreadCount > 0) { %><span class="nav-badge"><%= unreadCount %></span><% } %>
+    </a>
+    <a href="/auth/change-password" class="nav-item">
+      <span class="nav-icon">🔒</span> Change Password
+    </a>
+  </div>
+
+  <div class="sidebar-footer">
+    <% if (user) { %>
+    <div class="sidebar-user">
+      <div class="sidebar-avatar"><%= user.full_name.charAt(0).toUpperCase() %></div>
+      <div class="sidebar-user-info">
+        <div class="sidebar-user-name"><%= user.full_name %></div>
+        <div class="sidebar-user-role"><%= user.role %></div>
+      </div>
+    </div>
+    <form action="/auth/logout" method="POST" style="margin-top:12px">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <button type="submit" class="btn btn-outline full-width btn-sm">Sign out</button>
+    </form>
+    <% } %>
+  </div>
+</nav>

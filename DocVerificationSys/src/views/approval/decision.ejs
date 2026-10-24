@@ -1,0 +1,267 @@
+<%- include('../partials/helpers') %>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> | <%= appName %></title>
+  <link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+<div class="app-layout">
+  <%- include('../partials/sidebar', { user, unreadCount }) %>
+  <main class="main-content">
+    <%- include('../partials/topbar', { title, breadcrumbs: [{ label: 'Submissions', url: '/submissions' }, { label: submission.ref_number }] }) %>
+    <div class="page-content">
+      <%- include('../partials/flash', { flash: null }) %>
+      <div class="page-header">
+        <div>
+          <h1 class="page-title"><%= submission.ref_number %></h1>
+          <p class="page-subtitle"><%= submission.title %> · Final decision</p>
+        </div>
+        <div>
+          <%- statusBadge(submission.status) %>
+          <% if (submission.current_version_id) { %>
+          <a class="btn btn-outline btn-sm" target="_blank" href="/submissions/<%= submission.id %>/versions/<%= submission.current_version_id %>/download">Open uploaded document</a>
+          <% } %>
+          <a class="btn btn-outline btn-sm" href="/submissions/<%= submission.id %>">Full review</a>
+        </div>
+      </div>
+
+      <% if (currentVersion) { %>
+      <div class="card mb-16">
+        <div class="card-header">
+          <span class="card-title">Original uploaded document</span>
+          <a class="btn btn-outline btn-sm" target="_blank" rel="noopener"
+             href="/submissions/<%= submission.id %>/versions/<%= currentVersion.id %>/download">Open in new tab</a>
+        </div>
+        <div class="document-preview">
+          <% if (currentVersion.mime_type === 'application/pdf') { %>
+          <iframe src="/submissions/<%= submission.id %>/versions/<%= currentVersion.id %>/download"
+                  title="Original document: <%= currentVersion.original_filename %>" loading="lazy"></iframe>
+          <% } else if (currentVersion.mime_type === 'image/jpeg' || currentVersion.mime_type === 'image/png') { %>
+          <img src="/submissions/<%= submission.id %>/versions/<%= currentVersion.id %>/download"
+               alt="Original document: <%= currentVersion.original_filename %>" loading="lazy">
+          <% } else { %>
+          <p class="text-sm text-muted">Preview is not available for this file type. Open the document using the link above.</p>
+          <% } %>
+        </div>
+      </div>
+      <% } %>
+
+      <%- include('../partials/ocr-summary', { currentVersion, ocrResult, fields }) %>
+      <%- include('../partials/ai-summary', { currentVersion, submission, aiEnabled, csrfToken }) %>
+
+      <% if (corrections.length) { %>
+      <div class="card mb-16">
+        <div class="card-header"><span class="card-title">Reviewer field corrections</span></div>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>Field</th><th>Original OCR value</th><th>Corrected value</th><th>Corrected by</th><th>Reason</th><th>When</th></tr></thead>
+            <tbody><% corrections.forEach(correction => { %>
+              <tr>
+                <td><%= correction.field_name.replace(/_/g, ' ') %></td>
+                <td><%= correction.original_value || '—' %></td>
+                <td><strong><%= correction.corrected_value || '—' %></strong></td>
+                <td><%= correction.corrector_name %></td>
+                <td><%= correction.correction_reason || '—' %></td>
+                <td><%= fmtDateTime(correction.created_at) %></td>
+              </tr>
+            <% }) %></tbody>
+          </table>
+        </div>
+      </div>
+      <% } %>
+
+      <% if (fields.length) { %>
+      <div class="card mb-16">
+        <div class="card-header"><span class="card-title">Current extracted values</span></div>
+        <div class="card-body">
+          <% fields.forEach(field => { %>
+          <p>
+            <strong><%= field.field_name.replace(/_/g, ' ') %>:</strong>
+            <%= field.field_value || 'Not extracted' %>
+            <% if (field.is_corrected) { %><span class="badge badge-warning">Reviewer corrected</span><% } %>
+          </p>
+          <% }) %>
+        </div>
+      </div>
+      <% } %>
+
+      <% if (verResults.length) { %>
+      <div class="card mb-16">
+        <div class="card-header"><span class="card-title">Automated verification (assistive, not an authenticity decision)</span></div>
+        <div class="card-body">
+          <% verResults.forEach(item => { %>
+          <div class="vr-item">
+            <div class="vr-body">
+              <strong><%= item.rule_name %></strong>
+              <p class="vr-explain"><%= item.explanation || item.status %></p>
+              <%- verStatusBadge(item.status) %>
+            </div>
+          </div>
+          <% }) %>
+        </div>
+      </div>
+      <% } else { %>
+      <div class="card mb-16"><div class="card-body">No automated verification results are available. Review the original document before deciding.</div></div>
+      <% } %>
+
+      <% if (history.length) { %>
+      <div class="card mb-16">
+        <div class="card-header"><span class="card-title">Review and approval messages</span></div>
+        <div class="card-body">
+          <% history.forEach(message => { %>
+          <div class="comment type-<%= message.comment_type %>">
+            <div class="comment-header">
+              <span class="comment-author"><%= message.author_name %></span>
+              <%- roleBadge(message.author_role) %>
+              <span class="comment-time"><%= fmtDateTime(message.created_at) %></span>
+            </div>
+            <div class="comment-body"><%= message.body %></div>
+          </div>
+          <% }) %>
+        </div>
+      </div>
+      <% } %>
+
+      <% if (aiEnabled) { %>
+      <div class="card mb-16">
+        <div class="card-header"><span class="card-title">Document review assistant</span></div>
+        <div class="card-body">
+          <p class="text-sm text-muted">Ask about extracted values, verification results, or review messages. AI can be wrong and does not make approval decisions.</p>
+          <p class="text-sm text-muted"><strong>Privacy:</strong> Your question and relevant extracted document text, field values, checks, and review messages will be sent to the configured AI provider. With Ollama, processing is local.</p>
+          <div id="approval-assistant-conversation" aria-live="polite" class="mb-16"></div>
+          <form id="approval-assistant-form">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <label class="form-label" for="approval-assistant-question">Your question</label>
+            <textarea id="approval-assistant-question" class="form-control" rows="3" maxlength="1000" required placeholder="Ask about a value, check, or reviewer note"></textarea>
+            <button id="approval-assistant-submit" type="submit" class="btn btn-teal full-width mt-8">Ask about this submission</button>
+          </form>
+        </div>
+      </div>
+      <% } else { %>
+      <div class="card mb-16"><div class="card-body text-sm text-muted">AI assistance is disabled. Configure an AI provider in <code>.env</code> and restart DocVerify to enable document Q&amp;A.</div></div>
+      <% } %>
+
+      <% if (submission.status === 'PENDING_APPROVAL') { %>
+      <div class="card mb-16">
+        <div class="card-header"><span class="card-title">Return to submitter for resubmission</span></div>
+        <div class="card-body">
+          <form method="POST" action="/submissions/<%= submission.id %>/clarify">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <div class="form-group">
+              <label class="form-label" for="return-message">Explain what needs correction</label>
+              <% if (aiEnabled && currentVersion) { %>
+              <div class="mb-8" style="display:flex;align-items:center;gap:8px">
+                <button type="button" id="approval-ai-draft-btn" class="btn btn-outline btn-sm"
+                  aria-label="Draft correction message with AI">✦ Draft with AI</button>
+                <span class="text-sm text-muted">Pre-fills from failed checks.
+                  <strong>Review and edit before sending.</strong>
+                  Field values will be sent to the configured AI provider; Ollama processes them locally.</span>
+              </div>
+              <div id="approval-ai-draft-status" class="text-sm text-muted" aria-live="polite" style="display:none"></div>
+              <% } %>
+              <textarea id="return-message" name="message" class="form-control" rows="4" maxlength="4000" required></textarea>
+            </div>
+            <button class="btn btn-warning" type="submit">Request resubmission</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><span class="card-title">Record final decision</span></div>
+        <div class="card-body">
+          <form method="POST" action="/submissions/<%= submission.id %>/decide">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <div class="form-group">
+              <label class="form-label" for="decision">Decision</label>
+              <select class="form-control" name="decision" id="decision" required>
+                <option value="approved">Approve</option>
+                <option value="rejected">Reject</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="reason">Reason (required for rejection)</label>
+              <textarea class="form-control" id="reason" name="reason" rows="3"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="notes">Decision notes</label>
+              <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
+            </div>
+            <button class="btn btn-primary" type="submit" onclick="return confirm('Record this final decision?')">Record decision</button>
+          </form>
+        </div>
+      </div>
+      <% } %>
+    </div>
+  </main>
+</div>
+<script src="/js/main.js"></script>
+<% if (aiEnabled) { %>
+<script>
+document.getElementById('approval-assistant-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const input = document.getElementById('approval-assistant-question');
+  const output = document.getElementById('approval-assistant-conversation');
+  const button = document.getElementById('approval-assistant-submit');
+  const question = input.value.trim();
+  if (!question) return;
+  const questionNode = document.createElement('p');
+  questionNode.textContent = `You: ${question}`;
+  output.append(questionNode);
+  const answerNode = document.createElement('p');
+  answerNode.textContent = 'Assistant is checking the submission…';
+  output.append(answerNode);
+  button.disabled = true;
+  try {
+    const response = await fetch('/submissions/<%= submission.id %>/assistant', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'x-csrf-token': form.querySelector('input[name="_csrf"]').value },
+      body: JSON.stringify({ question }),
+    });
+    const data = await response.json();
+    answerNode.textContent = response.ok ? `Assistant: ${data.answer}` : `Assistant unavailable: ${data.error || 'Please try again.'}`;
+    if (response.ok) input.value = '';
+  } catch {
+    answerNode.textContent = 'Assistant unavailable. Check the connection and try again.';
+  } finally {
+    button.disabled = false;
+    input.focus();
+  }
+});
+
+const approvalDraftBtn = document.getElementById('approval-ai-draft-btn');
+const returnMessage = document.getElementById('return-message');
+const approvalDraftStatus = document.getElementById('approval-ai-draft-status');
+if (approvalDraftBtn && returnMessage) {
+  approvalDraftBtn.addEventListener('click', async () => {
+    approvalDraftBtn.disabled = true;
+    if (approvalDraftStatus) { approvalDraftStatus.style.display = ''; approvalDraftStatus.textContent = 'Generating draft…'; }
+    try {
+      const csrfInput = document.querySelector('input[name="_csrf"]');
+      const response = await fetch('/submissions/<%= submission.id %>/assistant/draft-correction', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'x-csrf-token': csrfInput ? csrfInput.value : '' },
+        body: JSON.stringify({}),
+      });
+      const data = await response.json();
+      if (response.ok && data.draft) {
+        returnMessage.value = data.draft;
+        if (approvalDraftStatus) approvalDraftStatus.textContent = 'Draft generated. Review and edit before sending.';
+        returnMessage.focus();
+      } else {
+        if (approvalDraftStatus) approvalDraftStatus.textContent = `Draft unavailable: ${data.error || 'Please try again or write manually.'}`;
+      }
+    } catch {
+      if (approvalDraftStatus) approvalDraftStatus.textContent = 'Draft unavailable. Check connection and try again.';
+    } finally {
+      approvalDraftBtn.disabled = false;
+    }
+  });
+}
+</script>
+<% } %>
+</body>
+</html>

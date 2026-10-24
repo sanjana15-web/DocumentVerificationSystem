@@ -1,0 +1,670 @@
+<%- include('../partials/helpers') %>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> | <%= appName %></title>
+  <link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+<div class="app-layout">
+  <%- include('../partials/sidebar', { user, unreadCount }) %>
+  <div class="main-content">
+    <%- include('../partials/topbar', { title, breadcrumbs: [
+      { label: 'Submissions', url: '/submissions' },
+      { label: submission.ref_number }
+    ] }) %>
+    <div class="page-content">
+
+      <%- include('../partials/flash', { flash }) %>
+
+      <!-- Header -->
+      <div class="page-header">
+        <div>
+          <h1 class="page-title"><%= submission.ref_number %></h1>
+          <p class="page-subtitle"><%= submission.title %></p>
+        </div>
+        <div class="d-flex gap-8">
+          <%- statusBadge(submission.status) %>
+          <% if (user.role === 'submitter' && submission.submitter_id === user.id &&
+                 ['DRAFT','CHANGES_REQUESTED','REJECTED','PROCESSING_FAILED'].includes(submission.status)) { %>
+          <a href="/submissions/<%= submission.id %>/upload" class="btn <%= submission.status === 'DRAFT' ? 'btn-primary' : 'btn-warning' %> btn-sm">
+            <%= submission.status === 'DRAFT' ? 'Upload Document' : submission.status === 'CHANGES_REQUESTED' ? 'Upload Revised Document' : 'Retry with a New Document' %>
+          </a>
+          <% } %>
+        </div>
+      </div>
+
+      <!-- Two-column layout -->
+      <div style="display:grid;grid-template-columns:1fr 360px;gap:20px;align-items:start">
+
+        <!-- Left: Main content -->
+        <div>
+
+          <!-- Submission info -->
+          <div class="card mb-16">
+            <div class="card-header"><span class="card-title">Submission Info</span></div>
+            <div class="card-body">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <div>
+                  <div class="text-sm text-muted">Vendor</div>
+                  <div class="fw-600"><%= submission.vendor_name || '—' %></div>
+                </div>
+                <div>
+                  <div class="text-sm text-muted">Category</div>
+                  <div><%= submission.doc_category %></div>
+                </div>
+                <div>
+                  <div class="text-sm text-muted">Submitter</div>
+                  <div><%= submission.submitter_name || '—' %></div>
+                </div>
+                <div>
+                  <div class="text-sm text-muted">Submitted</div>
+                  <div><%= fmtDateTime(submission.created_at) %></div>
+                </div>
+                <% if (submission.reviewer_name) { %>
+                <div>
+                  <div class="text-sm text-muted">Reviewer</div>
+                  <div><%= submission.reviewer_name %></div>
+                </div>
+                <% } %>
+                <% if (submission.approver_name) { %>
+                <div>
+                  <div class="text-sm text-muted">Approver</div>
+                  <div><%= submission.approver_name %></div>
+                </div>
+                <% } %>
+                <% if (submission.rejection_reason) { %>
+                <div style="grid-column:span 2">
+                  <div class="text-sm text-muted">Rejection Reason</div>
+                  <div class="alert alert-error mt-4"><%= submission.rejection_reason %></div>
+                </div>
+                <% } %>
+              </div>
+            </div>
+          </div>
+
+          <!-- Current document preview -->
+          <% if (currentVersion) {
+               const documentUrl = `/submissions/${submission.id}/versions/${currentVersion.id}/download`;
+          %>
+          <div class="card mb-16">
+            <div class="card-header">
+              <span class="card-title">Uploaded Document</span>
+              <a class="btn btn-outline btn-sm" href="<%= documentUrl %>" target="_blank" rel="noopener">Open in new tab</a>
+            </div>
+            <div class="document-preview">
+              <% if (currentVersion.mime_type === 'application/pdf') { %>
+              <iframe src="<%= documentUrl %>" title="Current document: <%= currentVersion.original_filename %>" loading="lazy"></iframe>
+              <% } else if (currentVersion.mime_type === 'image/jpeg' || currentVersion.mime_type === 'image/png') { %>
+              <img src="<%= documentUrl %>" alt="Current document: <%= currentVersion.original_filename %>" loading="lazy">
+              <% } else { %>
+              <p class="text-sm text-muted">Preview is not available for this file type. <a href="<%= documentUrl %>" target="_blank" rel="noopener">Open the uploaded document</a>.</p>
+              <% } %>
+            </div>
+          </div>
+          <% } else { %>
+          <div class="card mb-16">
+            <div class="card-header"><span class="card-title">Uploaded Document</span></div>
+            <div class="card-body text-sm text-muted">No document has been uploaded to this submission yet.</div>
+          </div>
+          <% } %>
+
+          <%- include('../partials/ocr-summary', { currentVersion, ocrResult, fields }) %>
+          <% if (['reviewer', 'approver', 'admin'].includes(user.role)) { %>
+          <%- include('../partials/ai-summary', { currentVersion, submission, aiEnabled, csrfToken }) %>
+          <% } %>
+
+          <!-- Document versions -->
+          <% if (versions && versions.length > 0) { %>
+          <div class="card mb-16">
+            <div class="card-header">
+              <span class="card-title">Document Versions</span>
+              <% if (submission.current_version_id) { %>
+              <a href="/submissions/<%= submission.id %>/versions/<%= submission.current_version_id %>/download"
+                 class="btn btn-outline btn-sm" target="_blank">⬇ Download Current</a>
+              <% } %>
+            </div>
+            <div class="table-wrapper">
+              <table>
+                <thead><tr><th>Ver</th><th>File</th><th>Size</th><th>Uploaded</th><th>Status</th><th></th></tr></thead>
+                <tbody>
+                  <% versions.forEach(v => { %>
+                  <tr>
+                    <td class="td-primary">
+                      v<%= v.version_number %>
+                      <% if (submission.current_version_id === v.id) { %><span class="badge badge-approved text-sm">current</span><% } %>
+                    </td>
+                    <td>
+                      <div class="text-sm"><%= v.original_filename %></div>
+                      <div class="mono text-sm text-muted"><%= v.file_hash_sha256 ? v.file_hash_sha256.slice(0,16) + '…' : '' %></div>
+                    </td>
+                    <td class="text-sm text-muted"><%= fmtBytes(v.file_size_bytes) %></td>
+                    <td class="text-sm text-muted nowrap"><%= fmtDate(v.created_at) %></td>
+                    <td>
+                      <% const ps = v.processing_status;
+                         const psCls = {pending:'badge-processing',processing:'badge-processing',completed:'badge-approved',failed:'badge-failed'};
+                         const psIcon = {pending:'⏳',processing:'🔄',completed:'✅',failed:'❌'}; %>
+                      <span class="badge <%= psCls[ps] || 'badge-draft' %>"><%= psIcon[ps] || '' %> <%= ps %></span>
+                    </td>
+                    <td><a class="btn btn-outline btn-sm" href="/submissions/<%= submission.id %>/versions/<%= v.id %>/download">Open</a></td>
+                  </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <% } %>
+
+          <% if (versionComparisons && versionComparisons.length > 0) { %>
+          <div class="card mb-16">
+            <div class="card-header"><span class="card-title">Version comparison</span></div>
+            <div class="table-wrapper"><table><thead><tr><th>Previous version</th><th>Field</th><th>Previous value</th><th>Current value</th></tr></thead><tbody>
+              <% versionComparisons.forEach(comparison => { comparison.fields.forEach(field => { %>
+              <tr><td>v<%= comparison.version.version_number %></td><td><%= field.name.replace(/_/g, ' ') %></td><td><%= field.previousValue || '—' %></td><td><%= field.currentValue || '—' %></td></tr>
+              <% }) }) %>
+            </tbody></table></div>
+          </div>
+          <% } %>
+
+          <% if (decisions && decisions.length > 0) { %>
+          <div class="card mb-16"><div class="card-header"><span class="card-title">Decision history</span></div>
+            <div class="table-wrapper"><table><thead><tr><th>Decision</th><th>Approver</th><th>Reason / notes</th><th>Date</th></tr></thead><tbody>
+              <% decisions.forEach(decision => { %><tr><td><%- statusBadge(decision.decision === 'approved' ? 'APPROVED' : 'REJECTED') %></td><td><%= decision.approver_name %></td><td><%= decision.reason || decision.decision_notes || '—' %></td><td><%= fmtDateTime(decision.created_at) %></td></tr><% }) %>
+            </tbody></table></div>
+          </div>
+          <% } %>
+
+          <!-- Extracted Fields -->
+          <% if (fields && fields.length > 0) { %>
+          <div class="card mb-16">
+            <div class="card-header"><span class="card-title">Extracted Fields</span><span class="text-sm text-muted"><%= fields.filter(f=>f.is_corrected).length %> corrected</span></div>
+            <div class="card-body">
+              <% fields.forEach(f => { %>
+              <div class="field-row" data-field-id="<%= f.id %>">
+                <div class="field-name"><%= f.field_name.replace(/_/g,' ') %></div>
+                <div class="field-value <%= f.is_corrected ? 'field-corrected' : '' %>">
+                  <% if (f.field_value) { %><%= f.field_value %><% } else { %><span class="text-muted">—</span><% } %>
+                  <% if (f.is_corrected) { %><span class="text-sm text-muted">(corrected)</span><% } %>
+                </div>
+                <% if (f.confidence !== null) { %>
+                <div style="width:120px">
+                  <div class="confidence-bar">
+                    <div class="confidence-track"><div class="confidence-fill <%= confClass(f.confidence) %>" style="width:<%= f.confidence %>%"></div></div>
+                    <span class="text-sm text-muted"><%= Math.round(f.confidence || 0) %>%</span>
+                  </div>
+                </div>
+                <% } %>
+                <div class="field-actions">
+                  <% if ((['reviewer','admin'].includes(user.role) && ['IN_REVIEW','REVIEW_REQUIRED','NEEDS_REVIEW'].includes(submission.status)) ||
+                        (user.role === 'submitter' && submission.submitter_id === user.id && submission.status === 'CHANGES_REQUESTED')) { %>
+                  <button class="btn btn-ghost btn-sm" data-field-id="<%= f.id %>" data-field-value="<%= f.field_value || '' %>" onclick="editField(this.dataset.fieldId, this.dataset.fieldValue)">Edit</button>
+                  <% } %>
+                </div>
+              </div>
+              <% }) %>
+            </div>
+          </div>
+          <% } %>
+
+          <% if (corrections && corrections.length > 0) { %>
+          <div class="card mb-16">
+            <div class="card-header"><span class="card-title">Field correction history</span></div>
+            <div class="table-wrapper"><table>
+              <thead><tr><th>Field</th><th>Original value</th><th>Corrected value</th><th>Corrected by</th><th>Reason</th></tr></thead>
+              <tbody><% corrections.forEach(correction => { %>
+                <tr>
+                  <td><%= correction.field_name.replace(/_/g, ' ') %></td>
+                  <td><%= correction.original_value || '—' %></td>
+                  <td><strong><%= correction.corrected_value || '—' %></strong></td>
+                  <td><%= correction.corrector_name %></td>
+                  <td><%= correction.correction_reason || '—' %></td>
+                </tr>
+              <% }) %></tbody>
+            </table></div>
+          </div>
+          <% } %>
+
+          <!-- Verification Results -->
+          <% if (verResults && verResults.length > 0) { %>
+          <div class="card mb-16">
+            <div class="card-header">
+              <span class="card-title">Verification Results</span>
+              <% if (verRun) { %>
+              <span class="badge <%= verRun.overall_result === 'PASS' ? 'badge-pass' : verRun.overall_result === 'FAIL' ? 'badge-fail' : 'badge-warning' %>">
+                Overall: <%= verRun.overall_result %>
+              </span>
+              <% } %>
+            </div>
+            <div class="card-body">
+              <% const failed  = verResults.filter(r=>r.status==='FAIL');
+                 const warned  = verResults.filter(r=>r.status==='WARNING');
+                 const passed  = verResults.filter(r=>r.status==='PASS');
+                 const nc      = verResults.filter(r=>r.status==='NOT_CHECKED');
+                 const ordered = [...failed,...warned,...passed,...nc]; %>
+
+              <% ordered.forEach(r => { %>
+              <div class="vr-item vr-<%= r.status === 'PASS' ? 'pass' : r.status === 'FAIL' ? 'fail' : r.status === 'WARNING' ? 'warning' : 'nc' %>">
+                <div class="vr-icon">
+                  <%= r.status === 'PASS' ? '✅' : r.status === 'FAIL' ? '❌' : r.status === 'WARNING' ? '⚠️' : '—' %>
+                </div>
+                <div class="vr-body">
+                  <div class="vr-rule"><%= r.rule_name %></div>
+                  <% if (r.explanation) { %><div class="vr-explain"><%= r.explanation %></div><% } %>
+                  <div class="vr-meta">
+                    ID: <code class="mono"><%= r.rule_id %></code> ·
+                    <%- severityBadge(r.severity) %>
+                    <% if (r.actual_value) { %> · Actual: <code class="mono"><%= r.actual_value %></code><% } %>
+                    <% if (r.expected_value) { %> · Expected: <code class="mono"><%= r.expected_value %></code><% } %>
+                  </div>
+                </div>
+                <% if (aiEnabled) { %>
+                <button class="btn btn-ghost btn-sm"
+                  onclick="explainResult('<%= verRun.id %>', '<%= r.rule_id %>', this)">💡 Explain</button>
+                <% } %>
+              </div>
+              <% }) %>
+            </div>
+          </div>
+          <% } %>
+
+          <!-- Line Items -->
+          <% if (lineItems && lineItems.length > 0) { %>
+          <div class="card mb-16">
+            <div class="card-header"><span class="card-title">Invoice Line Items</span></div>
+            <div class="table-wrapper">
+              <table>
+                <thead><tr><th>#</th><th>Description</th><th>Qty</th><th>Unit Price</th><th>Amount</th></tr></thead>
+                <tbody>
+                  <% lineItems.forEach(li => { %>
+                  <tr>
+                    <td><%= li.line_number %></td>
+                    <td><%= li.description || '—' %></td>
+                    <td class="mono"><%= li.quantity || '—' %></td>
+                    <td class="mono"><%= li.unit_price || '—' %></td>
+                    <td class="mono fw-600"><%= li.currency || '' %> <%= li.amount || '—' %></td>
+                  </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <% } %>
+
+        </div>
+
+        <!-- Right: Actions & Comments -->
+        <div>
+
+          <!-- Review Actions -->
+          <% if (user.role === 'admin') { %>
+          <div class="card mb-16">
+            <div class="card-header"><span class="card-title">Reviewer assignment</span></div>
+            <div class="card-body">
+              <form method="POST" action="/submissions/<%= submission.id %>/assign">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <div class="form-group"><label class="form-label" for="reviewer_id">Reviewer</label>
+                  <select class="form-control" name="reviewer_id" id="reviewer_id"><option value="">Unassigned</option><% reviewers.forEach(account => { %><option value="<%= account.id %>" <%= submission.reviewer_id === account.id ? 'selected' : '' %>><%= account.full_name %></option><% }) %></select>
+                </div>
+                <div class="form-group"><label class="form-label" for="approver_id">Approver</label>
+                  <select class="form-control" name="approver_id" id="approver_id"><option value="">Unassigned</option><% approvers.forEach(account => { %><option value="<%= account.id %>" <%= submission.approver_id === account.id ? 'selected' : '' %>><%= account.full_name %></option><% }) %></select>
+                </div>
+                <button class="btn btn-outline full-width" type="submit">Save assignments</button>
+              </form>
+            </div>
+          </div>
+          <% } %>
+
+          <!-- Review Actions -->
+          <% if (['reviewer','admin'].includes(user.role) && ['REVIEW_REQUIRED','NEEDS_REVIEW','IN_REVIEW'].includes(submission.status)) { %>
+          <div class="card mb-16">
+            <div class="card-header"><span class="card-title">Review Actions</span></div>
+            <div class="card-body" style="display:flex;flex-direction:column;gap:10px">
+
+              <% if (['REVIEW_REQUIRED','NEEDS_REVIEW'].includes(submission.status)) { %>
+              <p class="text-sm text-muted">The document is ready for your review. Start the review before forwarding it.</p>
+              <form method="POST" action="/submissions/<%= submission.id %>/start-review">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button type="submit" class="btn btn-primary full-width">Start Review</button>
+              </form>
+              <% } else { %>
+              <p class="text-sm text-muted">Check the original document, extracted fields, and verification results. Record a concise summary for the submitter and approver.</p>
+              <form method="POST" action="/submissions/<%= submission.id %>/forward">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <div class="form-group">
+                  <label class="form-label form-required" for="review-summary">Reviewer summary</label>
+                  <textarea id="review-summary" name="review_summary" class="form-control" rows="4" maxlength="4000" required
+                    placeholder="Summarize what you checked and whether the invoice is ready for approval."></textarea>
+                  <span class="form-hint">This note is visible to the submitter and the approver.</span>
+                </div>
+                <button type="submit" class="btn btn-success full-width"
+                  onclick="return confirm('Mark this submission reviewed and send it to the approver?')">
+                  ✅ Mark Reviewed &amp; Send to Approver
+                </button>
+              </form>
+              <% } %>
+
+              <button class="btn btn-warning full-width" onclick="openModal('clarify-modal')">↩ Request Clarification</button>
+            </div>
+          </div>
+          <% } %>
+
+          <% if (['reviewer','admin'].includes(user.role) && submission.status === 'PROCESSING') { %>
+          <div class="card mb-16"><div class="card-header"><span class="card-title">Review status</span></div>
+            <div class="card-body text-sm text-muted">Document processing is still in progress. Review and response actions will appear when processing finishes.</div>
+          </div>
+          <% } %>
+          <% if (['reviewer','admin'].includes(user.role) && submission.status === 'PROCESSING_FAILED') { %>
+          <div class="card mb-16"><div class="card-header"><span class="card-title">Processing failed</span></div>
+            <div class="card-body text-sm text-muted">The document could not be processed. Ask the submitter to upload a corrected file or retry from the submission page.</div>
+          </div>
+          <% } %>
+          <% if (['reviewer','admin'].includes(user.role) && submission.status === 'PENDING_APPROVAL') { %>
+          <div class="card mb-16"><div class="card-header"><span class="card-title">Review completed</span></div>
+            <div class="card-body text-sm text-muted">This submission has been sent to the approver. Its status will update here after a decision.</div>
+          </div>
+          <% } %>
+          <% if (user.role === 'approver' && ['PROCESSING','REVIEW_REQUIRED','NEEDS_REVIEW','IN_REVIEW'].includes(submission.status)) { %>
+          <div class="card mb-16"><div class="card-header"><span class="card-title">Approval status</span></div>
+            <div class="card-body text-sm text-muted">The reviewer has not completed this submission yet. Approval actions will appear after the reviewer sends their summary.</div>
+          </div>
+          <% } %>
+          <% if (user.role === 'approver' && submission.status === 'CHANGES_REQUESTED') { %>
+          <div class="card mb-16"><div class="card-header"><span class="card-title">Waiting for submitter</span></div>
+            <div class="card-body text-sm text-muted">The submission was returned for changes. Approval actions will appear after the submitter uploads a revised document and it is reviewed again.</div>
+          </div>
+          <% } %>
+
+          <!-- Approval Actions -->
+          <% if (['approver','admin'].includes(user.role) && submission.status === 'PENDING_APPROVAL' && submission.submitter_id !== user.id) { %>
+          <div class="card mb-16">
+            <div class="card-header"><span class="card-title">Approval Decision</span></div>
+            <div class="card-body" style="display:flex;flex-direction:column;gap:10px">
+              <a href="/submissions/<%= submission.id %>/decide" class="btn btn-primary full-width">🔍 Review & Decide</a>
+            </div>
+          </div>
+          <div class="card mb-16">
+            <div class="card-header"><span class="card-title">Return for resubmission</span></div>
+            <div class="card-body">
+              <form method="POST" action="/submissions/<%= submission.id %>/clarify">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <div class="form-group">
+                  <label class="form-label" for="approver-return-message">Explain what the submitter must correct</label>
+                  <textarea id="approver-return-message" name="message" class="form-control" rows="4" required maxlength="4000"></textarea>
+                </div>
+                <button type="submit" class="btn btn-warning full-width">Request resubmission</button>
+              </form>
+            </div>
+          </div>
+          <% } %>
+
+          <!-- Submitter clarification response -->
+          <% if (user.role === 'submitter' && submission.status === 'CHANGES_REQUESTED' && submission.submitter_id === user.id) { %>
+          <div class="card mb-16">
+            <div class="card-header"><span class="card-title">Clarification Required</span></div>
+            <div class="card-body">
+              <p class="text-sm text-muted mb-16">A reviewer has requested clarification. Please respond below or upload a revised document.</p>
+              <form method="POST" action="/submissions/<%= submission.id %>/respond">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <div class="form-group">
+                  <label class="form-label">Your Response</label>
+                  <textarea name="response_message" class="form-control" rows="4" required
+                    placeholder="Explain or provide the requested information…"></textarea>
+                </div>
+                <button type="submit" class="btn btn-teal full-width">Send Response</button>
+              </form>
+            </div>
+          </div>
+          <% } %>
+
+          <!-- Comments -->
+          <div class="card">
+            <div class="card-header"><span class="card-title">Comments</span></div>
+            <div class="card-body">
+              <% if (comments && comments.length > 0) { %>
+                <% comments.forEach(c => { %>
+                <div class="comment type-<%= c.comment_type %>">
+                  <div class="comment-header">
+                    <span class="comment-author"><%= c.author_name %></span>
+                    <%- roleBadge(c.author_role) %>
+                    <span class="comment-time"><%= fmtDateTime(c.created_at) %></span>
+                  </div>
+                  <div class="comment-body"><%= c.body %></div>
+                </div>
+                <% }) %>
+              <% } else { %>
+              <div class="text-sm text-muted">No comments yet.</div>
+              <% } %>
+            </div>
+          </div>
+
+          <% if (['reviewer','approver','admin'].includes(user.role)) { %>
+          <div class="assistant-widget">
+            <section id="assistant-panel" class="assistant-panel card" role="dialog" aria-modal="false" aria-labelledby="assistant-title" hidden>
+              <div class="card-header">
+                <span class="card-title" id="assistant-title">Document review assistant</span>
+                <button type="button" class="btn btn-ghost btn-sm" id="assistant-close" aria-label="Close assistant">✕</button>
+              </div>
+              <div class="card-body">
+                <% if (aiEnabled && currentVersion) { %>
+                <p class="text-sm text-muted">Ask about extracted values, verification results, or review messages. AI can be wrong and does not make approval decisions.</p>
+                <p class="text-sm text-muted"><strong>Privacy:</strong> Your question and relevant extracted document text, field values, checks, and review messages will be sent to the configured AI provider. With Ollama, processing is local.</p>
+                <div id="assistant-conversation" aria-live="polite" class="assistant-conversation mb-16"></div>
+                <form id="assistant-form">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <label class="form-label" for="assistant-question">Your question</label>
+                  <textarea id="assistant-question" name="question" class="form-control" rows="3" maxlength="1000" required placeholder="For example: Do the invoice total and line items appear inconsistent?"></textarea>
+                  <button id="assistant-submit" type="submit" class="btn btn-teal full-width mt-8">Ask about this submission</button>
+                </form>
+                <% } else if (!currentVersion) { %>
+                <p class="text-sm text-muted">The submitter has not uploaded a document yet. The assistant will be available after the document is uploaded.</p>
+                <% } else { %>
+                <p class="text-sm text-muted">AI assistance is disabled. Configure an AI provider in <code>.env</code> and restart DocVerify to enable document Q&amp;A.</p>
+                <% } %>
+              </div>
+            </section>
+            <button type="button" class="assistant-toggle" id="assistant-toggle" aria-label="Open document review assistant" aria-expanded="false" aria-controls="assistant-panel">
+              <span aria-hidden="true">✦</span>
+            </button>
+          </div>
+          <% } %>
+
+        </div>
+      </div>
+
+      <!-- Clarification Modal -->
+      <div class="modal-overlay" id="clarify-modal" role="dialog" aria-modal="true" aria-labelledby="clarify-title">
+        <div class="modal">
+          <div class="modal-header">
+            <h2 class="modal-title" id="clarify-title">Request Clarification</h2>
+          </div>
+          <form method="POST" action="/submissions/<%= submission.id %>/clarify">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <div class="modal-body">
+              <% if (aiEnabled && submission.current_version_id) { %>
+              <div class="mb-16" style="display:flex;align-items:center;gap:8px">
+                <button type="button" id="ai-draft-btn" class="btn btn-outline btn-sm"
+                  aria-label="Draft correction message with AI">✦ Draft with AI</button>
+                <span class="text-sm text-muted">AI will pre-fill the message from failed checks and missing fields.
+                  <strong>You must review and edit it before sending.</strong>
+                  Field values and check results will be sent to the configured AI provider; Ollama processes them locally.</span>
+              </div>
+              <div id="ai-draft-status" class="text-sm text-muted" aria-live="polite" style="display:none"></div>
+              <% } %>
+              <div class="form-group">
+                <label class="form-label form-required">Message to Submitter</label>
+                <textarea id="clarify-message" name="message" class="form-control" rows="5" required
+                  placeholder="Explain what information is missing or needs correction…"></textarea>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-outline" onclick="closeModal('clarify-modal')">Cancel</button>
+              <button type="submit" class="btn btn-warning">Send Request</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Field Edit Modal -->
+      <div class="modal-overlay" id="field-modal" role="dialog" aria-modal="true" aria-labelledby="field-modal-title">
+        <div class="modal">
+          <div class="modal-header">
+            <h2 class="modal-title" id="field-modal-title">Correct Field</h2>
+          </div>
+          <form id="field-edit-form" method="POST">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <div class="modal-body">
+              <div class="form-group">
+                <label class="form-label">Corrected Value</label>
+                <input type="text" name="corrected_value" id="field-edit-value" class="form-control" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Reason for Correction</label>
+                <textarea name="correction_reason" class="form-control" rows="3" required
+                  placeholder="Why is this value being corrected?"></textarea>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-outline" onclick="closeModal('field-modal')">Cancel</button>
+              <button type="submit" class="btn btn-teal">Save Correction</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- AI Explanation div -->
+      <div id="ai-explain-panel" class="card mt-16 hidden">
+        <div class="card-header"><span class="card-title">💡 AI Explanation</span><button onclick="document.getElementById('ai-explain-panel').classList.add('hidden')" class="btn btn-ghost btn-sm">✕</button></div>
+        <div class="card-body" id="ai-explain-body"><span class="text-muted">Loading…</span></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="/js/main.js"></script>
+<script>
+function editField(fieldId, currentValue) {
+  const form = document.getElementById('field-edit-form');
+  form.action = '/submissions/<%= submission.id %>/fields/' + fieldId + '/correct';
+  document.getElementById('field-edit-value').value = currentValue;
+  openModal('field-modal');
+}
+
+async function explainResult(runId, ruleId, btn) {
+  const panel = document.getElementById('ai-explain-panel');
+  const body  = document.getElementById('ai-explain-body');
+  panel.classList.remove('hidden');
+  body.innerHTML = '<span class="text-muted">Loading AI explanation…</span>';
+  btn.disabled = true;
+
+  try {
+    const resp = await fetch('/api/ai/explain-result', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-csrf-token': document.querySelector('input[name="_csrf"]').value,
+      },
+      body: JSON.stringify({ run_id: runId, rule_id: ruleId }),
+    });
+    const data = await resp.json();
+    if (data.available && data.explanation) {
+      body.textContent = data.explanation;
+    } else {
+      body.textContent = data.message || 'AI explanations are not available.';
+    }
+  } catch {
+    body.textContent = 'Failed to load explanation.';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+const assistantForm = document.getElementById('assistant-form');
+const assistantPanel = document.getElementById('assistant-panel');
+const assistantToggle = document.getElementById('assistant-toggle');
+const assistantClose = document.getElementById('assistant-close');
+function setAssistantOpen(open) {
+  if (!assistantPanel || !assistantToggle) return;
+  assistantPanel.hidden = !open;
+  assistantToggle.setAttribute('aria-expanded', String(open));
+  assistantToggle.setAttribute('aria-label', open ? 'Close document review assistant' : 'Open document review assistant');
+  if (open) document.getElementById('assistant-question')?.focus();
+  else assistantToggle.focus();
+}
+assistantToggle?.addEventListener('click', () => setAssistantOpen(assistantPanel.hidden));
+assistantClose?.addEventListener('click', () => setAssistantOpen(false));
+
+if (assistantForm) {
+  assistantForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const input = document.getElementById('assistant-question');
+    const output = document.getElementById('assistant-conversation');
+    const button = document.getElementById('assistant-submit');
+    const question = input.value.trim();
+    if (!question) return;
+    const questionNode = document.createElement('p');
+    questionNode.textContent = `You: ${question}`;
+    output.append(questionNode);
+    const answerNode = document.createElement('p');
+    answerNode.textContent = 'Assistant is checking the submission…';
+    output.append(answerNode);
+    button.disabled = true;
+    try {
+      const response = await fetch('/submissions/<%= submission.id %>/assistant', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'x-csrf-token': assistantForm.querySelector('input[name="_csrf"]').value,
+        },
+        body: JSON.stringify({ question }),
+      });
+      const data = await response.json();
+      answerNode.textContent = response.ok ? `Assistant: ${data.answer}` : `Assistant unavailable: ${data.error || 'Please try again.'}`;
+      if (response.ok) input.value = '';
+    } catch {
+      answerNode.textContent = 'Assistant unavailable. Check the connection and try again.';
+    } finally {
+      button.disabled = false;
+      input.focus();
+    }
+  });
+}
+
+const aiDraftBtn = document.getElementById('ai-draft-btn');
+const clarifyMessage = document.getElementById('clarify-message');
+const aiDraftStatus = document.getElementById('ai-draft-status');
+if (aiDraftBtn && clarifyMessage) {
+  aiDraftBtn.addEventListener('click', async () => {
+    aiDraftBtn.disabled = true;
+    if (aiDraftStatus) { aiDraftStatus.style.display = ''; aiDraftStatus.textContent = 'Generating draft…'; }
+    try {
+      const csrfInput = document.querySelector('#clarify-modal input[name="_csrf"]');
+      const response = await fetch('/submissions/<%= submission.id %>/assistant/draft-correction', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'x-csrf-token': csrfInput ? csrfInput.value : '',
+        },
+        body: JSON.stringify({}),
+      });
+      const data = await response.json();
+      if (response.ok && data.draft) {
+        clarifyMessage.value = data.draft;
+        if (aiDraftStatus) aiDraftStatus.textContent = 'Draft generated. Review and edit before sending.';
+        clarifyMessage.focus();
+      } else {
+        if (aiDraftStatus) aiDraftStatus.textContent = `Draft unavailable: ${data.error || 'Please try again or write manually.'}`;
+      }
+    } catch {
+      if (aiDraftStatus) aiDraftStatus.textContent = 'Draft unavailable. Check connection and try again.';
+    } finally {
+      aiDraftBtn.disabled = false;
+    }
+  });
+}
+</script>
+</body>
+</html>

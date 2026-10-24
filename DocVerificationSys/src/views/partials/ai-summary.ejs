@@ -1,0 +1,26 @@
+<section class="card mb-16" aria-labelledby="ai-summary-title">
+  <div class="card-header">
+    <span class="card-title" id="ai-summary-title">AI-generated document summary</span>
+  </div>
+  <div class="card-body">
+    <% if (!aiEnabled) { %>
+    <p class="text-sm text-muted">
+      AI summary is disabled. Configure an AI provider in <code>.env</code>
+      and restart DocVerify to enable it.
+    </p>
+    <% } else if (!currentVersion || currentVersion.processing_status !== 'completed') { %>
+    <p class="text-sm text-muted">
+      The summary will be generated after document text extraction is complete.
+    </p>
+    <% } else { %>
+    <p class="text-sm text-muted">
+      This AI summary is based on extracted document text, fields, verification results, and review messages.
+      It may be inaccurate and does not make an approval decision. Relevant submission content is sent to the configured AI provider.
+    </p>
+    <p id="ai-summary-content" class="ai-summary-content" role="status" aria-live="polite"
+       data-endpoint="/submissions/<%= submission.id %>/assistant/summary"
+       data-csrf-token="<%= csrfToken %>">Generating summary…</p>
+    <script src="/js/ai-summary.js" defer></script>
+    <% } %>
+  </div>
+</section>

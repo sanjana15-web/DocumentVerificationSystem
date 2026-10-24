@@ -1,0 +1,9 @@
+<% if (locals.flash && flash) { %>
+<div class="alert alert-<%= flash.type === 'success' ? 'success' : flash.type === 'error' ? 'error' : flash.type === 'info' ? 'info' : 'warning' %>" role="alert" id="flash-msg">
+  <span class="alert-icon">
+    <%= flash.type === 'success' ? '✅' : flash.type === 'error' ? '❌' : flash.type === 'info' ? 'ℹ️' : '⚠️' %>
+  </span>
+  <span><%= flash.message %></span>
+  <button onclick="this.parentElement.remove()" style="margin-left:auto;background:none;border:none;cursor:pointer;font-size:16px;opacity:0.6" aria-label="Dismiss">✕</button>
+</div>
+<% } %>
