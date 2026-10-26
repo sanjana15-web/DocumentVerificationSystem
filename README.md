@@ -17,10 +17,10 @@ To develop a secure web application that allows users to upload documents and en
 - Verification history and audit logs
 
 ## 4. Technology Stack
-- Frontend: React
+- Frontend: HTM, CSS and Javascript
 - Backend: Node.js and Express.js
-- Database: MongoDB
-- Optional AI: Google Gemini API
+- Database: MySQL
+- Optional AI: Google Gemini API and ollama
 - Version Control: Git and GitHub
 
 ## 5. Verification Statuses
